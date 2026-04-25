@@ -3,6 +3,8 @@
 
 #include <iostream>
 #include <utility>
+#include <vector>
+#include <string>
 
 extern int rows;         // The count of rows of the game map.
 extern int columns;      // The count of columns of the game map.
@@ -27,44 +29,238 @@ extern int total_mines;  // The count of mines of the game map.
  */
 void Execute(int r, int c, int type);
 
+char client_map[32][32];
+bool client_visited[32][32];
+bool client_marked[32][32];
+
 /**
  * @brief The definition of function InitGame()
- *
- * @details This function is designed to initialize the game. It should be called at the beginning of the game, which
- * will read the scale of the game map and the first step taken by the server (see README).
  */
 void InitGame() {
-  // TODO (student): Initialize all your global variables!
+  for (int i = 0; i < 32; ++i) {
+    for (int j = 0; j < 32; ++j) {
+      client_map[i][j] = '?';
+      client_visited[i][j] = false;
+      client_marked[i][j] = false;
+    }
+  }
   int first_row, first_column;
-  std::cin >> first_row >> first_column;
+  if (!(std::cin >> first_row >> first_column)) return;
   Execute(first_row, first_column, 0);
 }
 
 /**
  * @brief The definition of function ReadMap()
- *
- * @details This function is designed to read the game map from stdin when playing the client's (or player's) role.
- * Since the client (or player) can only get the limited information of the game map, so if there is a 3 * 3 map as
- * above and only the block (2, 0) has been visited, the stdin would be
- *     ???
- *     12?
- *     01?
  */
 void ReadMap() {
-  // TODO (student): Implement me!
+  for (int i = 0; i < rows; ++i) {
+    std::string line;
+    if (!(std::cin >> line)) break;
+    for (int j = 0; j < columns; ++j) {
+      client_map[i][j] = line[j];
+      if (line[j] >= '0' && line[j] <= '8') {
+        client_visited[i][j] = true;
+        client_marked[i][j] = false;
+      } else if (line[j] == '@') {
+        client_visited[i][j] = false;
+        client_marked[i][j] = true;
+      } else if (line[j] == 'X') {
+        client_visited[i][j] = true;
+        client_marked[i][j] = false;
+      } else {
+        client_visited[i][j] = false;
+        client_marked[i][j] = false;
+      }
+    }
+  }
 }
 
 /**
  * @brief The definition of function Decide()
- *
- * @details This function is designed to decide the next step when playing the client's (or player's) role. Open up your
- * mind and make your decision here! Caution: you can only execute once in this function.
  */
 void Decide() {
-  // TODO (student): Implement me!
-  // while (true) {
-  //   Execute(0, 0);
-  // }
+  // 1. Obvious moves
+  for (int i = 0; i < rows; ++i) {
+    for (int j = 0; j < columns; ++j) {
+      if (client_visited[i][j] && client_map[i][j] >= '0' && client_map[i][j] <= '8') {
+        int v = client_map[i][j] - '0';
+        int U = 0, M = 0;
+        for (int di = -1; di <= 1; ++di) {
+          for (int dj = -1; dj <= 1; ++dj) {
+            if (di == 0 && dj == 0) continue;
+            int ni = i + di, nj = j + dj;
+            if (ni >= 0 && ni < rows && nj >= 0 && nj < columns) {
+              if (client_marked[ni][nj]) M++;
+              else if (!client_visited[ni][nj]) U++;
+            }
+          }
+        }
+        if (U > 0) {
+          if (M == v) {
+            Execute(i, j, 2); // Auto explore
+            return;
+          }
+          if (M + U == v) {
+            for (int di = -1; di <= 1; ++di) {
+              for (int dj = -1; dj <= 1; ++dj) {
+                if (di == 0 && dj == 0) continue;
+                int ni = i + di, nj = j + dj;
+                if (ni >= 0 && ni < rows && nj >= 0 && nj < columns && !client_visited[ni][nj] && !client_marked[ni][nj]) {
+                  Execute(ni, nj, 1); // Mark mine
+                  return;
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // 2. Subset reasoning (1-2-1 pattern etc.)
+  for (int i1 = 0; i1 < rows; ++i1) {
+    for (int j1 = 0; j1 < columns; ++j1) {
+      if (client_visited[i1][j1] && client_map[i1][j1] >= '0' && client_map[i1][j1] <= '8') {
+        int v1 = client_map[i1][j1] - '0';
+        int M1 = 0;
+        std::vector<std::pair<int, int>> U1;
+        for (int di = -1; di <= 1; ++di) {
+          for (int dj = -1; dj <= 1; ++dj) {
+            if (di == 0 && dj == 0) continue;
+            int ni = i1 + di, nj = j1 + dj;
+            if (ni >= 0 && ni < rows && nj >= 0 && nj < columns) {
+              if (client_marked[ni][nj]) M1++;
+              else if (!client_visited[ni][nj]) U1.push_back({ni, nj});
+            }
+          }
+        }
+        if (U1.empty()) continue;
+        int R1 = v1 - M1;
+
+        for (int i2 = std::max(0, i1 - 2); i2 <= std::min(rows - 1, i1 + 2); ++i2) {
+          for (int j2 = std::max(0, j1 - 2); j2 <= std::min(columns - 1, j1 + 2); ++j2) {
+            if (i1 == i2 && j1 == j2) continue;
+            if (client_visited[i2][j2] && client_map[i2][j2] >= '0' && client_map[i2][j2] <= '8') {
+              int v2 = client_map[i2][j2] - '0';
+              int M2 = 0;
+              std::vector<std::pair<int, int>> U2;
+              for (int di = -1; di <= 1; ++di) {
+                for (int dj = -1; dj <= 1; ++dj) {
+                  if (di == 0 && dj == 0) continue;
+                  int ni = i2 + di, nj = j2 + dj;
+                  if (ni >= 0 && ni < rows && nj >= 0 && nj < columns) {
+                    if (client_marked[ni][nj]) M2++;
+                    else if (!client_visited[ni][nj]) U2.push_back({ni, nj});
+                  }
+                }
+              }
+              if (U2.empty()) continue;
+              int R2 = v2 - M2;
+
+              // Check if U1 is a subset of U2
+              bool U1_in_U2 = true;
+              for (auto &p1 : U1) {
+                bool found = false;
+                for (auto &p2 : U2) {
+                  if (p1.first == p2.first && p1.second == p2.second) {
+                    found = true;
+                    break;
+                  }
+                }
+                if (!found) {
+                  U1_in_U2 = false;
+                  break;
+                }
+              }
+
+              if (U1_in_U2) {
+                if (R2 == R1) {
+                  // All cells in U2 \ U1 are safe
+                  for (auto &p2 : U2) {
+                    bool in_U1 = false;
+                    for (auto &p1 : U1) {
+                      if (p1.first == p2.first && p1.second == p2.second) {
+                        in_U1 = true;
+                        break;
+                      }
+                    }
+                    if (!in_U1) {
+                      Execute(p2.first, p2.second, 0);
+                      return;
+                    }
+                  }
+                } else if (R2 - R1 == (int)(U2.size() - U1.size())) {
+                  // All cells in U2 \ U1 are mines
+                  for (auto &p2 : U2) {
+                    bool in_U1 = false;
+                    for (auto &p1 : U1) {
+                      if (p1.first == p2.first && p1.second == p2.second) {
+                        in_U1 = true;
+                        break;
+                      }
+                    }
+                    if (!in_U1) {
+                      Execute(p2.first, p2.second, 1);
+                      return;
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // 3. Guess
+  int best_r = -1, best_c = -1;
+  double min_prob = 2.0;
+
+  for (int i = 0; i < rows; ++i) {
+    for (int j = 0; j < columns; ++j) {
+      if (!client_visited[i][j] && !client_marked[i][j]) {
+        double prob = 1.0; // Default probability
+        bool near_visited = false;
+        for (int di = -1; di <= 1; ++di) {
+          for (int dj = -1; dj <= 1; ++dj) {
+            if (di == 0 && dj == 0) continue;
+            int ni = i + di, nj = j + dj;
+            if (ni >= 0 && ni < rows && nj >= 0 && nj < columns && client_visited[ni][nj]) {
+              near_visited = true;
+              int v = client_map[ni][nj] - '0';
+              int M = 0, U = 0;
+              for (int ddi = -1; ddi <= 1; ++ddi) {
+                for (int ddj = -1; ddj <= 1; ++ddj) {
+                  if (ddi == 0 && ddj == 0) continue;
+                  int nni = ni + ddi, nnj = nj + ddj;
+                  if (nni >= 0 && nni < rows && nnj >= 0 && nnj < columns) {
+                    if (client_marked[nni][nnj]) M++;
+                    else if (!client_visited[nni][nnj]) U++;
+                  }
+                }
+              }
+              if (U > 0) {
+                double p = (double)(v - M) / U;
+                if (p < prob) prob = p;
+              }
+            }
+          }
+        }
+        if (!near_visited) prob = 0.5; // Arbitrary value for isolated cells
+
+        if (prob < min_prob) {
+          min_prob = prob;
+          best_r = i;
+          best_c = j;
+        }
+      }
+    }
+  }
+
+  if (best_r != -1) {
+    Execute(best_r, best_c, 0);
+  }
 }
 
 #endif
