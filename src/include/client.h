@@ -79,6 +79,38 @@ void ReadMap() {
  * @brief The definition of function Decide()
  */
 void Decide() {
+  int total_unvisited = 0;
+  int total_marked = 0;
+  for (int i = 0; i < rows; ++i) {
+    for (int j = 0; j < columns; ++j) {
+      if (client_marked[i][j]) total_marked++;
+      else if (!client_visited[i][j]) total_unvisited++;
+    }
+  }
+
+  if (total_unvisited > 0) {
+    if (total_marked == total_mines) {
+      for (int i = 0; i < rows; ++i) {
+        for (int j = 0; j < columns; ++j) {
+          if (!client_visited[i][j] && !client_marked[i][j]) {
+            Execute(i, j, 0);
+            return;
+          }
+        }
+      }
+    }
+    if (total_unvisited + total_marked == total_mines) {
+      for (int i = 0; i < rows; ++i) {
+        for (int j = 0; j < columns; ++j) {
+          if (!client_visited[i][j] && !client_marked[i][j]) {
+            Execute(i, j, 1);
+            return;
+          }
+        }
+      }
+    }
+  }
+
   // 1. Obvious moves
   for (int i = 0; i < rows; ++i) {
     for (int j = 0; j < columns; ++j) {
@@ -117,7 +149,7 @@ void Decide() {
     }
   }
 
-  // 2. Subset reasoning (1-2-1 pattern etc.)
+  // 2. Generalized subset reasoning
   for (int i1 = 0; i1 < rows; ++i1) {
     for (int j1 = 0; j1 < columns; ++j1) {
       if (client_visited[i1][j1] && client_map[i1][j1] >= '0' && client_map[i1][j1] <= '8') {
@@ -157,54 +189,37 @@ void Decide() {
               if (U2.empty()) continue;
               int R2 = v2 - M2;
 
-              // Check if U1 is a subset of U2
-              bool U1_in_U2 = true;
+              std::vector<std::pair<int, int>> I, A, B;
               for (auto &p1 : U1) {
-                bool found = false;
+                bool in_U2 = false;
                 for (auto &p2 : U2) {
                   if (p1.first == p2.first && p1.second == p2.second) {
-                    found = true;
+                    in_U2 = true;
                     break;
                   }
                 }
-                if (!found) {
-                  U1_in_U2 = false;
-                  break;
+                if (in_U2) I.push_back(p1);
+                else A.push_back(p1);
+              }
+              if (I.empty()) continue;
+              for (auto &p2 : U2) {
+                bool in_U1 = false;
+                for (auto &p1 : U1) {
+                  if (p1.first == p2.first && p1.second == p2.second) {
+                    in_U1 = true;
+                    break;
+                  }
                 }
+                if (!in_U1) B.push_back(p2);
               }
 
-              if (U1_in_U2) {
-                if (R2 == R1) {
-                  // All cells in U2 \ U1 are safe
-                  for (auto &p2 : U2) {
-                    bool in_U1 = false;
-                    for (auto &p1 : U1) {
-                      if (p1.first == p2.first && p1.second == p2.second) {
-                        in_U1 = true;
-                        break;
-                      }
-                    }
-                    if (!in_U1) {
-                      Execute(p2.first, p2.second, 0);
-                      return;
-                    }
-                  }
-                } else if (R2 - R1 == (int)(U2.size() - U1.size())) {
-                  // All cells in U2 \ U1 are mines
-                  for (auto &p2 : U2) {
-                    bool in_U1 = false;
-                    for (auto &p1 : U1) {
-                      if (p1.first == p2.first && p1.second == p2.second) {
-                        in_U1 = true;
-                        break;
-                      }
-                    }
-                    if (!in_U1) {
-                      Execute(p2.first, p2.second, 1);
-                      return;
-                    }
-                  }
-                }
+              if (R2 - R1 == (int)B.size()) {
+                if (!B.empty()) { Execute(B[0].first, B[0].second, 1); return; }
+                if (!A.empty()) { Execute(A[0].first, A[0].second, 0); return; }
+              }
+              if (R1 - R2 == (int)A.size()) {
+                if (!A.empty()) { Execute(A[0].first, A[0].second, 1); return; }
+                if (!B.empty()) { Execute(B[0].first, B[0].second, 0); return; }
               }
             }
           }
@@ -216,11 +231,10 @@ void Decide() {
   // 3. Guess
   int best_r = -1, best_c = -1;
   double min_prob = 2.0;
-
   for (int i = 0; i < rows; ++i) {
     for (int j = 0; j < columns; ++j) {
       if (!client_visited[i][j] && !client_marked[i][j]) {
-        double prob = 1.0; // Default probability
+        double prob = (total_unvisited > 0) ? (double)(total_mines - total_marked) / total_unvisited : 1.0;
         bool near_visited = false;
         for (int di = -1; di <= 1; ++di) {
           for (int dj = -1; dj <= 1; ++dj) {
@@ -247,20 +261,11 @@ void Decide() {
             }
           }
         }
-        if (!near_visited) prob = 0.5; // Arbitrary value for isolated cells
-
-        if (prob < min_prob) {
-          min_prob = prob;
-          best_r = i;
-          best_c = j;
-        }
+        if (prob < min_prob) { min_prob = prob; best_r = i; best_c = j; }
       }
     }
   }
-
-  if (best_r != -1) {
-    Execute(best_r, best_c, 0);
-  }
+  if (best_r != -1) Execute(best_r, best_c, 0);
 }
 
 #endif
