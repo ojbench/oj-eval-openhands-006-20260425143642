@@ -5,6 +5,7 @@
 #include <utility>
 #include <vector>
 #include <string>
+#include <algorithm>
 
 extern int rows;         // The count of rows of the game map.
 extern int columns;      // The count of columns of the game map.
@@ -213,18 +214,29 @@ void Decide() {
                 if (!in_U1) B.push_back(p2);
               }
 
-              if (R2 - R1 == (int)B.size()) {
-                for (auto &p : B) { if (!client_marked[p.first][p.second]) { Execute(p.first, p.second, 1); return; } }
-                for (auto &p : A) { if (!client_visited[p.first][p.second]) { Execute(p.first, p.second, 0); return; } }
-              }
-              if (R1 - R2 == (int)A.size()) {
-                for (auto &p : A) { if (!client_marked[p.first][p.second]) { Execute(p.first, p.second, 1); return; } }
-                for (auto &p : B) { if (!client_visited[p.first][p.second]) { Execute(p.first, p.second, 0); return; } }
-              }
-              // Additional logic: if R1 == 1 and R2 == 1 and A.size() == 1 and B.size() == 1
-              // then the mine must be in I, so A and B are safe.
-              if (R1 == 1 && R2 == 1 && A.size() == 1 && B.size() == 1) {
-                Execute(A[0].first, A[0].second, 0); return;
+              int min_K = std::max({0, R1 - (int)A.size(), R2 - (int)B.size()});
+              int max_K = std::min({(int)I.size(), R1, R2});
+
+              if (min_K == max_K) {
+                int K = min_K;
+                if (R1 - K == (int)A.size()) {
+                  for (auto &p : A) if (!client_marked[p.first][p.second]) { Execute(p.first, p.second, 1); return; }
+                }
+                if (R1 - K == 0) {
+                  for (auto &p : A) if (!client_visited[p.first][p.second]) { Execute(p.first, p.second, 0); return; }
+                }
+                if (R2 - K == (int)B.size()) {
+                  for (auto &p : B) if (!client_marked[p.first][p.second]) { Execute(p.first, p.second, 1); return; }
+                }
+                if (R2 - K == 0) {
+                  for (auto &p : B) if (!client_visited[p.first][p.second]) { Execute(p.first, p.second, 0); return; }
+                }
+                if (K == (int)I.size()) {
+                  for (auto &p : I) if (!client_marked[p.first][p.second]) { Execute(p.first, p.second, 1); return; }
+                }
+                if (K == 0) {
+                  for (auto &p : I) if (!client_visited[p.first][p.second]) { Execute(p.first, p.second, 0); return; }
+                }
               }
             }
           }
