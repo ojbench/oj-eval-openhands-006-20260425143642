@@ -231,6 +231,8 @@ void Decide() {
   // 3. Guess
   int best_r = -1, best_c = -1;
   double min_prob = 2.0;
+  int max_unvisited_neighbors = -1;
+
   for (int i = 0; i < rows; ++i) {
     for (int j = 0; j < columns; ++j) {
       if (!client_visited[i][j] && !client_marked[i][j]) {
@@ -261,7 +263,30 @@ void Decide() {
             }
           }
         }
-        if (prob < min_prob) { min_prob = prob; best_r = i; best_c = j; }
+        
+        int unvisited_neighbors = 0;
+        for (int di = -1; di <= 1; ++di) {
+          for (int dj = -1; dj <= 1; ++dj) {
+            if (di == 0 && dj == 0) continue;
+            int ni = i + di, nj = j + dj;
+            if (ni >= 0 && ni < rows && nj >= 0 && nj < columns && !client_visited[ni][nj] && !client_marked[ni][nj]) {
+              unvisited_neighbors++;
+            }
+          }
+        }
+
+        if (prob < min_prob - 1e-9) {
+          min_prob = prob;
+          max_unvisited_neighbors = unvisited_neighbors;
+          best_r = i;
+          best_c = j;
+        } else if (std::abs(prob - min_prob) < 1e-9) {
+          if (unvisited_neighbors > max_unvisited_neighbors) {
+            max_unvisited_neighbors = unvisited_neighbors;
+            best_r = i;
+            best_c = j;
+          }
+        }
       }
     }
   }
