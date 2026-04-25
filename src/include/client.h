@@ -214,12 +214,17 @@ void Decide() {
               }
 
               if (R2 - R1 == (int)B.size()) {
-                if (!B.empty()) { Execute(B[0].first, B[0].second, 1); return; }
-                if (!A.empty()) { Execute(A[0].first, A[0].second, 0); return; }
+                for (auto &p : B) { if (!client_marked[p.first][p.second]) { Execute(p.first, p.second, 1); return; } }
+                for (auto &p : A) { if (!client_visited[p.first][p.second]) { Execute(p.first, p.second, 0); return; } }
               }
               if (R1 - R2 == (int)A.size()) {
-                if (!A.empty()) { Execute(A[0].first, A[0].second, 1); return; }
-                if (!B.empty()) { Execute(B[0].first, B[0].second, 0); return; }
+                for (auto &p : A) { if (!client_marked[p.first][p.second]) { Execute(p.first, p.second, 1); return; } }
+                for (auto &p : B) { if (!client_visited[p.first][p.second]) { Execute(p.first, p.second, 0); return; } }
+              }
+              // Additional logic: if R1 == 1 and R2 == 1 and A.size() == 1 and B.size() == 1
+              // then the mine must be in I, so A and B are safe.
+              if (R1 == 1 && R2 == 1 && A.size() == 1 && B.size() == 1) {
+                Execute(A[0].first, A[0].second, 0); return;
               }
             }
           }
